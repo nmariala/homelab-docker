@@ -1,0 +1,57 @@
+name: homelab-docker
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: homelab-postgres
+    restart: unless-stopped
+    env_file:
+      - .env.docker
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - homelab_int
+    mem_limit: 384m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 15s
+
+  api:
+    build:
+      context: /home/nugie/belajar-node
+      dockerfile: /home/nugie/homelab-docker/backend/Dockerfile
+    container_name: homelab-api
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env.docker
+    environment:
+      - HOST=0.0.0.0
+    ports:
+      - "127.0.0.1:3001:3000"
+    networks:
+      - homelab_int
+    mem_limit: 128m
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  pgdata:
+    name: homelab-pgdata
+
+networks:
+  homelab_int:
+    driver: bridge
