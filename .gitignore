@@ -1,8 +1,30 @@
-node_modules
-dist
-.env.docker
-*.env
+# ---- Dependencies / build ----
+node_modules/
+dist/
+
+# ---- Secrets & environment ----
+.env
 .env.*
 !.env.example
+.env.docker
+
+# ---- Runtime / logs ----
 *.log
+
+# ---- Backups / dumps (jangan pernah masuk repo) ----
+backup/
+*.sql
+*.sql.gz
+*.tar.gz
+*.dump
+
+# ---- Credentials / keys ----
+*.pem
+*.key
+*credential*
+*credentials*.json
+token.txt
+
+# ---- Local / OS ----
+.DS_Store
 .git

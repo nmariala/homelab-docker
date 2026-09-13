@@ -1,0 +1,71 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install backend dependencies (npm ci)
+        working-directory: backend
+        run: npm ci --omit=dev
+
+      - name: Backend syntax validation (node --check)
+        working-directory: backend
+        run: |
+          node --check server.js
+          node --check db.js
+          node --check auth.js
+
+      - name: Backend smoke health check (short-lived, tanpa DB)
+        working-directory: backend
+        run: |
+          HOST=127.0.0.1 \
+          DB_HOST=localhost DB_PORT=5432 DB_NAME=ci DB_USER=ci DB_PASSWORD=ci \
+          DASHBOARD_USERNAME=ci DASHBOARD_PASSWORD=ci SESSION_SECRET=ci \
+            node server.js >/tmp/server.log 2>&1 &
+          pid=$!
+          ok=""
+          for i in $(seq 1 20); do
+            if curl -fsS -o /dev/null http://127.0.0.1:3000/api/health; then ok="1"; break; fi
+            sleep 0.5
+          done
+          kill $pid 2>/dev/null || true
+          if [ -z "$ok" ]; then
+            echo "::error::Backend /api/health tidak merespons"
+            cat /tmp/server.log
+            exit 1
+          fi
+          echo "Backend /api/health OK (server dimatikan, tidak ada DB)"
+
+      - name: Validate Docker Compose config
+        run: |
+          cp .env.example .env.docker
+          docker compose config --quiet
+        shell: bash
+
+      - name: Pastikan tidak ada di jalur komit yang secara tidak sengaja berisi secret
+        run: |
+          if git ls-files | grep -qE '(^|/)\.env($|\.)|\.env\.docker$|\.pem$|\.key$|\.sql(\.gz)?$'; then
+            echo "::error::File berpotensi secret ikut ter-track"
+            git ls-files | grep -E '(^|/)\.env($|\.)|\.env\.docker$|\.pem$|\.key$|\.sql(\.gz)?$'
+            exit 1
+          fi
+          echo "OK: tidak ada file berpotensi secret di track Git"

@@ -31,8 +31,8 @@ services:
 
   api:
     build:
-      context: /home/nugie/belajar-node
-      dockerfile: /home/nugie/homelab-docker/backend/Dockerfile
+      context: ./backend
+      dockerfile: Dockerfile
     container_name: homelab-api
     restart: unless-stopped
     depends_on:
