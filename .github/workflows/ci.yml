@@ -14,10 +14,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
-      - name: Setup Node.js 20
-        uses: actions/setup-node@v4
+      - name: Setup Node.js 20 (runtime aplikasi; action berjalan di Node 24)
+        uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: npm
@@ -61,11 +61,17 @@ jobs:
           docker compose config --quiet
         shell: bash
 
-      - name: Pastikan tidak ada di jalur komit yang secara tidak sengaja berisi secret
+      - name: Secret-track guard (.env.example diperbolehkan)
         run: |
-          if git ls-files | grep -qE '(^|/)\.env($|\.)|\.env\.docker$|\.pem$|\.key$|\.sql(\.gz)?$'; then
-            echo "::error::File berpotensi secret ikut ter-track"
-            git ls-files | grep -E '(^|/)\.env($|\.)|\.env\.docker$|\.pem$|\.key$|\.sql(\.gz)?$'
+          forbidden=$(
+            git ls-files \
+              | grep -vE '(^|/)\.env\.example$' \
+              | grep -E '(^|/)\.env(\.|$)|\.pem$|\.key$|\.sql(\.gz)?$|credential' \
+              || true
+          )
+          if [ -n "$forbidden" ]; then
+            echo "::error::File berpotensi secret ikut ter-track:"
+            printf '%s\n' "$forbidden"
             exit 1
           fi
-          echo "OK: tidak ada file berpotensi secret di track Git"
+          echo "OK: tidak ada file berpotensi secret di track Git (di luar .env.example)"
